@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+build/
+build_*/
+dist/
+dist_*/
+*.spec.bak
+.idea/
+.vscode/
+*.log
+*.csv
+*.zip
+.nmse_oleder_rs485/

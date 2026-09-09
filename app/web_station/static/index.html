@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NMSE OLEDer RS-485</title>
+  <link rel="icon" href="/static/app.ico">
+  <script src="/static/chart.umd.js"></script>
+  <style>
+    :root{--bg:#050505;--panel:#101010;--panel2:#171717;--line:#343434;--text:#f7f7f7;--muted:#a8a8a8;--orange:#ff7a00;--orange2:#ffb000;--red:#ff5a1f;--ok:#ffb000}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 10% 0,#39200a 0,transparent 30%),var(--bg);color:var(--text);font:14px Segoe UI,Inter,sans-serif}button,input,select{font:inherit}
+    .shell{display:grid;grid-template-columns:250px 1fr;min-height:100vh}.side{position:sticky;top:0;height:100vh;padding:25px 18px;border-right:1px solid var(--line);background:#080808e8}.brand{font-size:20px;font-weight:800;margin:0 8px 26px}.brand i{display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--orange);box-shadow:0 0 25px var(--orange);margin-right:10px}.nav{display:grid;gap:8px}.nav button{border:0;background:transparent;color:var(--muted);text-align:left;padding:12px 14px;border-radius:10px;cursor:pointer}.nav button.active,.nav button:hover{background:#241506;color:#fff}.connection{position:absolute;left:18px;right:18px;bottom:22px;border:1px solid var(--line);border-radius:14px;padding:14px;background:#111}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#555;margin-right:8px}.dot.on{background:var(--ok);box-shadow:0 0 14px var(--ok)}
+    main{padding:20px 26px;min-width:0}.view{display:none}.view.active{display:block}.topline{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:13px}.topline h1{margin:0;font-size:25px}.sub{color:var(--muted);margin-top:4px;line-height:1.35}.actions,.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.btn{border:1px solid var(--line);background:#151515;color:#f3f3f3;border-radius:9px;padding:8px 12px;cursor:pointer;text-decoration:none}.btn:hover{border-color:var(--orange)}.btn:disabled{opacity:.45;cursor:not-allowed}.btn.primary{border:0;background:linear-gradient(135deg,var(--orange),var(--orange2));color:#090909;font-weight:800}.btn.danger{border-color:#8f3512;background:#1c0e08;color:#ffd1bf}.field,.select{border:1px solid var(--line);background:#101010;color:#fff;border-radius:9px;padding:8px 10px;outline:none}.field:focus,.select:focus{border-color:var(--orange)}label.small{color:var(--muted);font-size:12px}label.small input{display:block;margin-top:5px;width:100%}
+    .panel{border:1px solid var(--line);background:linear-gradient(145deg,#151515,#0b0b0b);border-radius:15px;box-shadow:0 16px 35px #0005}.settings{padding:13px;margin-bottom:11px}.config-grid{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:8px;align-items:end}.status-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:8px;margin-bottom:10px}.board-pill{padding:9px 11px}.board-pill strong{display:block;font-size:15px}.board-pill.ok{border-color:#6a4a11}.board-pill.bad{border-color:#7d2e12}.board-tabs{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:8px 0 10px}.tab-btn{border:1px solid var(--line);background:#101010;color:var(--muted);border-radius:9px;padding:7px 13px;cursor:pointer;font-weight:650}.tab-btn:hover{border-color:#8d4b11;color:#fff}.tab-btn.active{border-color:var(--orange);background:#2b1807;color:#fff;box-shadow:inset 0 0 0 1px #ff7a0033}.channel-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.channel-card{padding:10px;min-width:0}.card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.card-head h3{margin:0;font-size:15px}.badge{font-size:9px;padding:3px 6px;border-radius:99px;background:#241506;color:#ffb867}.controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.controls label{font-size:9px;color:var(--muted);min-width:0}.controls input,.controls select{width:100%;margin-top:2px;padding:5px 6px;font-size:11px;white-space:nowrap;text-overflow:ellipsis}.channel-card>.sub,.channel-card .controls+.sub{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.metrics{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin:6px 0}.metric{background:#090909;border-radius:8px;padding:6px}.metric small{display:block;color:var(--muted);font-size:8px;text-transform:uppercase}.metric strong{display:block;margin-top:2px;font-size:12px;white-space:nowrap}.card-actions{display:flex;gap:5px}.card-actions .btn{flex:1;padding:6px 5px;font-size:10px}
+    .chart-panel{padding:14px}.chart-toolbar{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:10px}.chart-filter-area{display:grid;gap:7px;justify-items:end}.filter-group{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.filter-title{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#777;margin-right:3px}.filters{display:grid;gap:7px}.toggle{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:99px;padding:5px 9px;background:#0d0d0d;color:#eee;font-size:11px}.toggle input{accent-color:var(--orange)}.canvas-wrap{height:570px}.canvas-wrap canvas{max-height:570px}
+    .record-layout{display:grid;grid-template-columns:300px 1fr;gap:14px}.stack{display:grid;gap:10px}.record-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:9px}.record-card{padding:12px}.record-card strong{display:block;font-size:22px;color:var(--orange);margin:4px 0}.record-board-actions{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}.calibration-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.cal-card{padding:10px;min-width:0}.cal-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.cal-fields label{font-size:9px;color:var(--muted);min-width:0}.cal-fields input,.cal-fields select{width:100%;margin-top:2px;padding:5px 6px;font-size:10px;white-space:nowrap;text-overflow:ellipsis}.cal-copy-actions{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:8px}.cal-copy-actions .btn{padding:7px 4px;font-size:9px}.note{padding:13px 15px;border:1px solid #59300c;background:#160d04;border-radius:12px;color:#e5d7c8;line-height:1.5;margin-bottom:13px}.log{height:650px;overflow:auto;background:#070707;border:1px solid var(--line);border-radius:14px;padding:14px;font:12px Consolas,monospace}.log div{padding:3px 0;color:#aaa}.log .tx{color:var(--orange)}.log .rx{color:#fff}.log .err{color:#ff9070}.modal{position:fixed;inset:0;background:#000c;display:none;align-items:center;justify-content:center;padding:24px;z-index:40;backdrop-filter:blur(5px)}.modal.open{display:flex}.modal-card{width:min(1400px,96vw);height:min(880px,92vh);padding:18px;display:grid;grid-template-rows:auto auto 1fr;gap:12px}.modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.modal-head h2{margin:0}.icon-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:#111;color:#fff;font-size:23px;cursor:pointer}.record-chart-wrap{min-height:0;position:relative}.record-chart-wrap canvas{width:100%!important;height:100%!important}.modal-loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);background:#0b0b0bdd;border-radius:10px;z-index:2}.toast{position:fixed;right:24px;bottom:24px;padding:13px 18px;border-radius:10px;background:#161616;border:1px solid var(--orange);box-shadow:0 12px 40px #0008;opacity:0;transform:translateY(10px);transition:.2s;pointer-events:none;z-index:50}.toast.show{opacity:1;transform:none}.toast.error{border-color:var(--red);color:#ffd1bf}
+    @media(max-width:1100px){.shell{grid-template-columns:1fr}.side{position:relative;height:auto}.connection{position:static;margin-top:14px}.config-grid,.record-layout{grid-template-columns:1fr}.channel-grid,.calibration-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.filter-group{justify-content:flex-start}.chart-filter-area{justify-items:start}.chart-toolbar{display:grid}.canvas-wrap{height:420px}}
+    @media(max-width:680px){.channel-grid,.calibration-grid{grid-template-columns:1fr}}
+    @media(min-width:1101px) and (max-height:850px){main{padding-top:14px;padding-bottom:14px}.topline{margin-bottom:8px}.settings{padding:10px}.status-grid{margin-bottom:6px}.board-tabs{margin:5px 0 7px}.channel-card{padding:9px 10px}.metrics{margin:5px 0}.channel-card>.sub,.channel-card .controls+.sub{margin-top:2px}.card-head{margin-bottom:5px}}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><i></i>NMSE OLEDer<br><span class="sub">RS-485 multi-board</span></div>
+    <nav class="nav">
+      <button class="active" data-view="control">Управление</button>
+      <button data-view="chart">Графики</button>
+      <button data-view="record">Запись</button>
+      <button data-view="calibration">Калибровка</button>
+      <button data-view="logs">Журнал</button>
+      <button data-view="docs">Памятка</button>
+    </nav>
+    <div class="connection">
+      <div><span id="connDot" class="dot"></span><b id="connText">Не подключено</b></div>
+      <div class="sub" id="connPort">USB-RS485 не выбран</div>
+      <button class="btn danger" id="shutdown" style="width:100%;margin-top:12px">Завершить программу</button>
+    </div>
+  </aside>
+  <main>
+    <section id="control" class="view active">
+      <div class="topline">
+        <div><h1>Управление всеми каналами</h1><div class="sub">Каждая плата RS-485 даёт 4 образца. Адреса плат задаются списком.</div></div>
+        <div class="actions"><button class="btn" id="refreshPorts">Обновить COM</button><button class="btn primary" id="connect">Подключить</button><button class="btn danger" id="zeroAll">Обнулить всё</button></div>
+      </div>
+      <div class="panel settings">
+        <div class="config-grid">
+          <label class="small">COM-порт<select id="port" class="select"></select></label>
+          <label class="small">Адреса плат<input id="boardIds" class="field" value="1,2" placeholder="1,2,3"></label>
+          <label class="small">Шунт, Ом<input id="shuntOhm" class="field" type="number" value="25" min="0.001" step="0.1"></label>
+          <label class="small">Усиление I<input id="currentGain" class="field" type="number" value="10" min="0.001" step="0.1"></label>
+          <button class="btn" id="saveConfig">Сохранить настройки</button>
+        </div>
+        <div class="sub" id="scaleHint">Токовый коэффициент: —</div>
+      </div>
+      <div id="boardStatus" class="status-grid"></div>
+      <div id="controlBoardTabs" class="board-tabs" aria-label="Выбор платы управления"></div>
+      <div id="channelGrid" class="channel-grid"></div>
+    </section>
+
+    <section id="chart" class="view">
+      <div class="topline"><div><h1>Графики в реальном времени</h1><div class="sub">Выберите плату, каналы и нужные величины.</div></div><button class="btn" id="forceRead">Прочитать сейчас</button></div>
+      <div class="panel chart-panel">
+        <div class="chart-toolbar">
+          <div><h3 style="margin:0">Измерения</h3><div class="sub">Напряжение, ток и яркость всех каналов</div></div>
+          <div class="chart-filter-area">
+            <div id="chartBoardTabs" class="board-tabs" style="margin:0"></div>
+            <div class="filters" id="chartFilters"></div>
+          </div>
+        </div>
+        <div class="canvas-wrap"><canvas id="liveChart"></canvas></div>
+      </div>
+    </section>
+
+    <section id="record" class="view">
+      <div class="topline"><div><h1>Запись характеристик</h1><div class="sub">На каждый запуск создаётся папка, внутри папка каждой платы и 4 CSV по образцам.</div></div></div>
+      <div class="record-layout">
+        <div class="panel settings">
+          <div class="stack">
+            <label class="small">Интервал записи, с<input id="recordInterval" class="field" type="number" value="10" min="0.2" step="0.5"></label>
+            <button class="btn primary" id="startRecord">Начать запись</button>
+            <button class="btn danger" id="stopRecord">Остановить запись</button>
+            <a class="btn" href="/api/recording/zip" style="text-align:center">Скачать текущую запись ZIP</a>
+          </div>
+          <div class="sub" id="recordStatus" style="margin-top:14px">Запись не запущена</div>
+          <div class="sub" id="recordDir"></div>
+        </div>
+        <div>
+          <div class="record-board-actions" id="recordBoardGraphs"></div>
+          <div class="record-cards" id="recordCards"></div>
+          <div class="note" style="margin-top:14px">CSV пишутся сразу на диск. Формат: человеческое время, Unix-время компьютера, время от старта, плата, образец, напряжение, ток, яркость и сырые ADS-напряжения.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="calibration" class="view">
+      <div class="topline">
+        <div>
+          <h1>Калибровочные коэффициенты</h1>
+          <div class="sub">Arduino передаёт готовые U и I; программа применяет финальную correction и токовый offset, зависящий от напряжения образца.</div>
+        </div>
+        <div class="actions">
+          <button class="btn" id="reloadCalibration">Вернуть из сохранённых</button>
+          <a class="btn" href="/api/calibration/export" download>Скачать JSON</a>
+          <button class="btn" id="chooseCalibrationImport">Загрузить JSON</button>
+          <input id="calibrationImportFile" type="file" accept="application/json,.json" hidden>
+          <button class="btn primary" id="saveCalibration">Сохранить калибровку</button>
+        </div>
+      </div>
+      <div class="note">
+        Калибровки автоматически хранятся по RS-485-адресу платы, даже если временно убрать плату из активного списка. Файл настроек: <code>%USERPROFILE%\.nmse_oleder_rs485\config.json</code>.
+      </div>
+      <div class="note">
+        Для яркости можно выбрать PGA/gain ADS1115. Чем меньше диапазон, тем лучше шаг измерения, но если реальный сигнал выше диапазона, АЦП будет насыщаться.
+      </div>
+      <div class="note">
+        <b>Линейный offset тока:</b> задайте две точки <code>(U1; I offset 1)</code> и <code>(U2; I offset 2)</code>. Между ними поправка меняется линейно и вычитается из тока Arduino. Ниже U1 и выше U2 используется ближайшее крайнее значение.
+      </div>
+      <div id="calibrationBoardTabs" class="board-tabs" aria-label="Выбор платы калибровки"></div>
+      <div id="calibrationGrid" class="calibration-grid"></div>
+    </section>
+
+    <section id="logs" class="view">
+      <div class="topline"><div><h1>Журнал RS-485</h1><div class="sub">Команды TX и ответы RX по общей шине.</div></div><button class="btn" id="scanBoards">PING всех плат</button></div>
+      <div class="log" id="log"></div>
+    </section>
+
+    <section id="docs" class="view">
+      <div class="topline"><div><h1>Памятка подключения</h1><div class="sub">Коротко для передачи проекта в другие руки.</div></div></div>
+      <div class="note">
+        <b>RS-485:</b> USB-RS485 A → общая A, B → общая B, GND общий. На каждой Arduino: TX→DI, RX→RO, D2→DE и /RE вместе, VCC/GND на MAX485. Команды адресные: <code>1,PING</code>, <code>2,READ</code>, <code>3,SET,1,0.8,0.2</code>.
+      </div>
+      <div class="note">
+        <b>Папки записи:</b> <code>%USERPROFILE%\.nmse_oleder_rs485\recordings\run_YYYY-MM-DD_HH-MM-SS\board_01\sample_1.csv</code>. Для каждой платы создаётся своя папка, внутри 4 CSV.
+      </div>
+      <div class="note">
+        <b>ADS1115 яркость:</b> gain фотоканала выбирается отдельно для каждого образца. Команда платы: <code>1,PHGAIN,3,16</code>. Диапазоны: 2/3 → 6.144 В, 1 → 4.096 В, 2 → 2.048 В, 4 → 1.024 В, 8 → 0.512 В, 16 → 0.256 В.
+      </div>
+    </section>
+  </main>
+</div>
+<div id="recordChartModal" class="modal" aria-hidden="true">
+  <div class="panel modal-card" role="dialog" aria-modal="true" aria-labelledby="recordChartTitle">
+    <div class="modal-head">
+      <div><h2 id="recordChartTitle">График записи</h2><div class="sub" id="recordChartMeta">—</div></div>
+      <button class="icon-btn" id="closeRecordChart" aria-label="Закрыть">×</button>
+    </div>
+    <div class="chart-filter-area" style="justify-items:start">
+      <div class="filter-group" id="recordMetricFilters"></div>
+      <div class="filter-group" id="recordChannelFilters"></div>
+    </div>
+    <div class="record-chart-wrap"><div class="modal-loading" id="recordChartLoading">Загрузка CSV…</div><canvas id="recordChart"></canvas></div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const api=async(path,opt={})=>{let r=await fetch(path,{headers:{'Content-Type':'application/json'},...opt});if(!r.ok){let e=await r.json().catch(()=>({detail:r.statusText}));throw Error(e.detail)}return r.json()};
+const colors=['#ff7a00','#ffffff','#ffb000','#8f8f8f','#ff5a1f','#d0d0d0','#ff9636','#6f6f6f'];
+let connected=false,lastPayload=null,channelState={},chart=null,chartDatasets=[];
+let controlBoard=null,chartBoard=null;
+let metricVisible={u:true,i:true,photo:false};
+let chartChannelVisible={1:true,2:true,3:true,4:true};
+let recordChart=null,recordHistory=null,recordMetric='i';
+let recordChannelVisible={1:true,2:true,3:true,4:true};
+let calibrationDirty=false,calibrationKey='',calibrationRenderKey='',calibrationDraft=null,calibrationBoard=null;
+const fallbackGainOptions={
+  '2/3':{label:'2/3x · до 6.144 В · 187.5 мкВ/бит',full_scale_v:6.144,lsb_uv:187.5},
+  '1':{label:'1x · до 4.096 В · 125 мкВ/бит',full_scale_v:4.096,lsb_uv:125},
+  '2':{label:'2x · до 2.048 В · 62.5 мкВ/бит',full_scale_v:2.048,lsb_uv:62.5},
+  '4':{label:'4x · до 1.024 В · 31.25 мкВ/бит',full_scale_v:1.024,lsb_uv:31.25},
+  '8':{label:'8x · до 0.512 В · 15.625 мкВ/бит',full_scale_v:0.512,lsb_uv:15.625},
+  '16':{label:'16x · до 0.256 В · 7.8125 мкВ/бит',full_scale_v:0.256,lsb_uv:7.8125}
+};
+const calibrationFields=[
+  ['voltage_device_scale','U Arduino correction'],
+  ['voltage_device_offset','U Arduino offset, В'],
+  ['current_device_scale','I Arduino correction'],
+  ['current_device_offset','I постоянная correction, мА'],
+  ['current_offset_u1_v','I offset: U1, В'],
+  ['current_offset_i1_ma','I offset при U1, мА'],
+  ['current_offset_u2_v','I offset: U2, В'],
+  ['current_offset_i2_ma','I offset при U2, мА'],
+  ['photo_measure_scale','Яркость scale'],
+  ['photo_measure_offset','Яркость offset']
+];
+
+function toast(msg,error=false){let t=$('#toast');t.textContent=msg;t.className='toast show'+(error?' error':'');setTimeout(()=>t.className='toast',3200)}
+document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button,.view').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#'+b.dataset.view).classList.add('active');if(chart)chart.resize();if(recordChart)recordChart.resize()});
+function parseIds(){return $('#boardIds').value.split(/[,\s;]+/).map(x=>+x).filter(Boolean)}
+function gainOptions(){return lastPayload?.gain_options||fallbackGainOptions}
+function gainSelectHtml(selected,attr){return `<select class="select" ${attr}>${Object.entries(gainOptions()).map(([key,opt])=>`<option value="${esc(key)}" ${key===selected?'selected':''}>${esc(opt.label||key)}</option>`).join('')}</select>`}
+function boardIdsFromChannels(channels){return [...new Set((channels||[]).map(ch=>Number(ch.board)))].sort((a,b)=>a-b)}
+function ensureSelectedBoard(channels,current){let ids=boardIdsFromChannels(channels);return ids.includes(Number(current))?Number(current):(ids[0]??null)}
+function channelsOfBoard(channels,board){return (channels||[]).filter(ch=>Number(ch.board)===Number(board)).sort((a,b)=>a.sample-b.sample)}
+function updateScaleHint(){let sh=+$('#shuntOhm').value,g=+$('#currentGain').value,scale=1000/(sh*g);$('#scaleHint').textContent=Number.isFinite(scale)?`Токовый коэффициент ${scale.toFixed(6)} мА/В, диапазон ADC примерно 0…${(5*scale).toFixed(3)} мА`:'Проверьте шунт и усиление'}
+$('#shuntOhm').oninput=updateScaleHint;$('#currentGain').oninput=updateScaleHint;
+
+async function refreshPorts(){try{let ps=await api('/api/ports');$('#port').innerHTML=ps.map(p=>`<option value="${esc(p.device)}">${esc(p.device)} · ${esc(p.description)}</option>`).join('')||'<option value="">Порты не найдены</option>'}catch(e){toast(e.message,true)}}refreshPorts();$('#refreshPorts').onclick=refreshPorts;
+async function loadConfig(){let c=await api('/api/config');$('#boardIds').value=c.board_ids.join(',');$('#shuntOhm').value=c.hardware.shunt_ohm;$('#currentGain').value=c.hardware.current_gain;updateScaleHint()}loadConfig();
+$('#saveConfig').onclick=async()=>{try{await api('/api/config',{method:'PUT',body:JSON.stringify({board_ids:parseIds(),shunt_ohm:+$('#shuntOhm').value,current_gain:+$('#currentGain').value})});toast('Настройки сохранены')}catch(e){toast(e.message,true)}};
+$('#connect').onclick=async()=>{try{if(connected){await api('/api/disconnect',{method:'POST'});return}await api('/api/connect',{method:'POST',body:JSON.stringify({port:$('#port').value,board_ids:parseIds()})});toast('USB-RS485 подключен')}catch(e){toast(e.message,true)}};
+$('#shutdown').onclick=async()=>{if(!confirm('Остановить локальный сервер?'))return;await api('/api/shutdown',{method:'POST'});document.body.innerHTML='<div style="display:grid;place-items:center;height:100vh;background:#050505;color:#fff;font:20px Segoe UI">NMSE OLEDer RS-485 завершён</div>'};
+$('#zeroAll').onclick=async()=>{if(!confirm('Обнулить все платы и каналы?'))return;try{await api('/api/zero',{method:'POST'});toast('Все платы обнулены')}catch(e){toast(e.message,true)}};
+$('#scanBoards').onclick=async()=>{try{await api('/api/scan',{method:'POST'});toast('PING всех плат выполнен')}catch(e){toast(e.message,true)}};
+$('#forceRead').onclick=async()=>{try{await api('/api/read',{method:'POST'});toast('Чтение запрошено')}catch(e){toast(e.message,true)}};
+$('#startRecord').onclick=async()=>{try{await api('/api/recording/start',{method:'POST',body:JSON.stringify({interval:+$('#recordInterval').value})});toast('Запись начата')}catch(e){toast(e.message,true)}};
+$('#stopRecord').onclick=async()=>{try{await api('/api/recording/stop',{method:'POST'});toast('Запись остановлена')}catch(e){toast(e.message,true)}};
+$('#reloadCalibration').onclick=()=>{calibrationDirty=false;calibrationKey='';calibrationRenderKey='';calibrationDraft=null;if(lastPayload)renderCalibration(lastPayload,true);toast('Калибровка перечитана из сохранённых')};
+$('#saveCalibration').onclick=async()=>{try{await api('/api/calibration',{method:'PUT',body:JSON.stringify({calibration:collectCalibration()})});calibrationDirty=false;calibrationKey='';calibrationRenderKey='';calibrationDraft=null;toast('Калибровка всех плат сохранена на диск')}catch(e){toast(e.message,true)}};
+$('#chooseCalibrationImport').onclick=()=>$('#calibrationImportFile').click();
+$('#calibrationImportFile').onchange=async event=>{let file=event.target.files?.[0];if(!file)return;try{let parsed=JSON.parse(await file.text()),calibration=parsed.calibration||parsed;if(!calibration||typeof calibration!=='object'||Array.isArray(calibration))throw Error('В JSON не найден раздел calibration');if(!confirm(`Загрузить калибровку из файла ${file.name}?`))return;let result=await api('/api/calibration/import',{method:'POST',body:JSON.stringify({calibration})});calibrationDirty=false;calibrationKey='';calibrationRenderKey='';calibrationDraft=null;toast(`Загружена калибровка плат: ${result.boards.join(', ')}`)}catch(e){toast(`Не удалось загрузить JSON: ${e.message}`,true)}finally{event.target.value=''}};
+
+function renderBoards(boards){
+  let ids=Object.keys(boards||{}).sort((a,b)=>+a-+b);
+  $('#boardStatus').innerHTML=ids.map(id=>{let b=boards[id];return `<div class="panel board-pill ${b.online?'ok':'bad'}"><strong>Плата ${id}</strong><div class="sub">${esc(b.status||'—')}</div><div class="sub">последний ответ: ${esc(b.last_seen||'—')}</div></div>`}).join('');
+}
+function ensureChannelDefaults(ch){if(!channelState[ch.key])channelState[ch.key]={voltage:0,current:0,limit:Math.max(0.1,ch.max_current||20)};let s=channelState[ch.key];if(s.limit>(ch.max_current||20))s.limit=ch.max_current||20;return s}
+function renderControlBoardTabs(channels){
+  controlBoard=ensureSelectedBoard(channels,controlBoard);
+  let ids=boardIdsFromChannels(channels);
+  $('#controlBoardTabs').innerHTML=`<span class="filter-title">Плата управления</span>`+ids.map(id=>`<button class="tab-btn ${id===controlBoard?'active':''}" data-control-board="${id}">Плата ${id}</button>`).join('');
+  document.querySelectorAll('[data-control-board]').forEach(button=>button.onclick=()=>{controlBoard=+button.dataset.controlBoard;renderControlBoardTabs(lastPayload?.channels||[]);let visible=channelsOfBoard(lastPayload?.channels||[],controlBoard);renderChannels.lastKeys='';renderChannels(visible);renderCurrentGainControls(visible)});
+}
+function updateChannelMetrics(channels){
+  (channels||[]).forEach(ch=>{let p=ch.latest,u=document.querySelector(`[data-metric-value="${ch.key}:u"]`),i=document.querySelector(`[data-metric-value="${ch.key}:i"]`),ph=document.querySelector(`[data-metric-value="${ch.key}:photo"]`),src=document.querySelector(`[data-measure-source="${ch.key}"]`);if(u)u.textContent=p?p.u.toFixed(4)+' В':'—';if(i)i.textContent=p?p.i.toFixed(4)+' мА':'—';if(ph)ph.textContent=p?p.photo.toFixed(4):'—';if(src)src.textContent=p?(p.measurement_source==='device_converted'?`Arduino: U=${Number(p.device_u).toFixed(4)} В, I=${Number(p.device_i).toFixed(4)} мА · вычтен offset(U)=${Number(p.current_dynamic_offset_ma||0).toFixed(4)} мА`:`Совместимый режим raw · вычтен offset(U)=${Number(p.current_dynamic_offset_ma||0).toFixed(4)} мА`):'Источник измерения: —'});
+}
+function renderChannels(channels){
+  let keys=(channels||[]).map(ch=>`${ch.key}:${Number(ch.max_current||0).toFixed(6)}:${ch.photo_adc_gain}`).join('|');
+  if(renderChannels.lastKeys===keys){updateChannelMetrics(channels);return}
+  renderChannels.lastKeys=keys;
+  $('#channelGrid').innerHTML=(channels||[]).map(ch=>{let s=ensureChannelDefaults(ch),p=ch.latest,c=colors[(ch.sample-1)%colors.length];return `<div class="panel channel-card" style="border-color:${c}55"><div class="card-head"><h3>Образец ${ch.sample}</h3><span class="badge">канал ${ch.sample}</span></div><div class="controls"><label>U, В<input class="field" data-key="${ch.key}" data-field="voltage" type="number" min="0" step="0.05" value="${s.voltage}"></label><label>I, мА<input class="field" data-key="${ch.key}" data-field="current" type="number" min="0" max="${ch.max_current}" step="0.1" value="${s.current}"></label><label>Лимит, мА<input class="field" data-key="${ch.key}" data-field="limit" type="number" min="0.1" max="${ch.max_current}" step="0.1" value="${s.limit}"></label><label>Gain яркости${gainSelectHtml(ch.photo_adc_gain,`data-photo-gain="${ch.key}"`)}</label></div><div class="sub" data-measure-source="${ch.key}">Источник измерения: —</div><div class="metrics"><div class="metric"><small>U</small><strong data-metric-value="${ch.key}:u">${p?p.u.toFixed(4)+' В':'—'}</strong></div><div class="metric"><small>I</small><strong data-metric-value="${ch.key}:i">${p?p.i.toFixed(4)+' мА':'—'}</strong></div><div class="metric"><small>Яркость</small><strong data-metric-value="${ch.key}:photo">${p?p.photo.toFixed(4):'—'}</strong></div></div><div class="card-actions"><button class="btn primary" data-apply="${ch.key}">Применить</button><button class="btn danger" data-zero-board="${ch.board}">ZERO платы</button></div></div>`}).join('');
+  document.querySelectorAll('[data-field]').forEach(x=>x.oninput=()=>{channelState[x.dataset.key][x.dataset.field]=+x.value});
+  document.querySelectorAll('[data-photo-gain]').forEach(x=>x.onchange=async()=>{let [board,sample]=x.dataset.photoGain.split(':').map(Number);try{await api('/api/photo-gain',{method:'POST',body:JSON.stringify({board,sample,gain:x.value})});toast(`Плата ${board}, образец ${sample}: gain яркости ${x.value}`)}catch(e){toast(e.message,true)}});
+  document.querySelectorAll('[data-apply]').forEach(b=>b.onclick=async()=>{let [board,sample]=b.dataset.apply.split(':').map(Number),s=channelState[b.dataset.apply];try{await api('/api/set',{method:'POST',body:JSON.stringify({board,sample,voltage:s.voltage,current:s.current,current_limit:s.limit})});toast(`Плата ${board}, образец ${sample}: применено`)}catch(e){toast(e.message,true)}});
+  document.querySelectorAll('[data-zero-board]').forEach(b=>b.onclick=async()=>{let board=+b.dataset.zeroBoard;if(!confirm(`Обнулить плату ${board}?`))return;try{await api('/api/zero/'+board,{method:'POST'});toast(`Плата ${board} обнулена`)}catch(e){toast(e.message,true)}});
+  updateChannelMetrics(channels);
+}
+function cloneValue(value){return JSON.parse(JSON.stringify(value))}
+function renderCalibration(payload,force=false){
+  let config=payload.config||{},cal=config.calibration||{},channels=payload.channels||[],boardIds=(config.board_ids||boardIdsFromChannels(channels)).map(Number);
+  let serverKey=JSON.stringify({boards:boardIds,cal});
+  if(!calibrationDraft||(!calibrationDirty&&calibrationKey!==serverKey)){calibrationDraft=cloneValue(cal);calibrationKey=serverKey}
+  calibrationBoard=boardIds.includes(Number(calibrationBoard))?Number(calibrationBoard):(boardIds[0]??null);
+  let renderKey=`${serverKey}|${calibrationBoard}`;
+  if(!force&&calibrationRenderKey===renderKey)return;
+  calibrationRenderKey=renderKey;
+  $('#calibrationBoardTabs').innerHTML=`<span class="filter-title">Плата калибровки</span>`+boardIds.map(id=>`<button class="tab-btn ${id===calibrationBoard?'active':''}" data-calibration-board="${id}">Плата ${id}</button>`).join('');
+  document.querySelectorAll('[data-calibration-board]').forEach(button=>button.onclick=()=>{calibrationBoard=+button.dataset.calibrationBoard;calibrationRenderKey='';renderCalibration(lastPayload,true)});
+  let visible=channelsOfBoard(channels,calibrationBoard);
+  $('#calibrationGrid').innerHTML=visible.map(ch=>{
+    let sample=(calibrationDraft[String(ch.board)]||[])[ch.sample-1]||{};
+    let fields=calibrationFields.map(([field,label])=>`<label>${label}<input class="field" data-cal-board="${ch.board}" data-cal-sample="${ch.sample}" data-cal-field="${field}" type="number" step="0.000001" value="${Number(sample[field]??0)}"></label>`).join('');
+    return `<div class="panel cal-card"><div class="card-head"><h3>Образец ${ch.sample}</h3><span class="badge">канал ${ch.sample}</span></div><div class="cal-fields">${fields}<label>Gain яркости${gainSelectHtml(sample.photo_adc_gain||ch.photo_adc_gain,`data-cal-board="${ch.board}" data-cal-sample="${ch.sample}" data-cal-field="photo_adc_gain"`)}</label><label>Gain измерения тока${gainSelectHtml(sample.current_adc_gain||ch.current_adc_gain,`data-cal-board="${ch.board}" data-cal-sample="${ch.sample}" data-cal-field="current_adc_gain"`)}</label></div><div class="cal-copy-actions"><button class="btn" data-copy-cal-board="${ch.board}:${ch.sample}">На все 4 канала</button><button class="btn danger" data-copy-cal-all="${ch.board}:${ch.sample}">На все платы</button></div></div>`;
+  }).join('');
+  document.querySelectorAll('[data-cal-field]').forEach(input=>{let updateDraft=()=>{let board=String(input.dataset.calBoard),sample=+input.dataset.calSample,field=input.dataset.calField;if(!calibrationDraft[board])calibrationDraft[board]=Array.from({length:4},()=>({}));calibrationDraft[board][sample-1][field]=field.endsWith('_adc_gain')?input.value:+input.value;calibrationDirty=true};input.oninput=updateDraft;input.onchange=updateDraft});
+  document.querySelectorAll('[data-copy-cal-board]').forEach(button=>button.onclick=()=>{let [board,sample]=button.dataset.copyCalBoard.split(':').map(Number);copyCalibration(board,sample,false)});
+  document.querySelectorAll('[data-copy-cal-all]').forEach(button=>button.onclick=()=>{let [board,sample]=button.dataset.copyCalAll.split(':').map(Number);copyCalibration(board,sample,true)});
+}
+function copyCalibration(board,sample,toAllBoards){
+  let source=calibrationDraft?.[String(board)]?.[sample-1];if(!source)return;
+  let boardIds=(lastPayload?.config?.board_ids||[]).map(Number);
+  if(toAllBoards&&!confirm(`Скопировать калибровку платы ${board}, канала ${sample} на все каналы всех плат?`))return;
+  let targets=toAllBoards?boardIds:[board];
+  targets.forEach(target=>{if(!calibrationDraft[String(target)])calibrationDraft[String(target)]=Array.from({length:4},()=>({}));for(let index=0;index<4;index++)calibrationDraft[String(target)][index]=cloneValue(source)});
+  calibrationDirty=true;calibrationRenderKey='';renderCalibration(lastPayload,true);toast(toAllBoards?'Калибровка скопирована на все каналы всех плат. Нажмите «Сохранить калибровку»':'Калибровка скопирована на 4 канала платы. Нажмите «Сохранить калибровку»');
+}
+function renderCurrentGainControls(channels){
+  let cards=[...document.querySelectorAll('#channelGrid .channel-card')];
+  (channels||[]).forEach((ch,index)=>{
+    let card=cards[index];if(!card)return;
+    let controls=card.querySelector('.controls');if(!controls)return;
+    let wrap=controls.querySelector('[data-current-gain-wrap]');
+    if(!wrap){wrap=document.createElement('label');wrap.dataset.currentGainWrap='1';wrap.innerHTML='Gain тока<select class="select" data-current-adc-gain></select>';controls.appendChild(wrap)}
+    let select=wrap.querySelector('select');
+    select.dataset.currentAdcGain=ch.key;
+    select.innerHTML=Object.entries(gainOptions()).map(([key,opt])=>`<option value="${esc(key)}" ${key===ch.current_adc_gain?'selected':''}>${esc(opt.label||key)}</option>`).join('');
+    select.onchange=async()=>{let [board,sample]=select.dataset.currentAdcGain.split(':').map(Number);try{await api('/api/current-adc-gain',{method:'POST',body:JSON.stringify({board,sample,gain:select.value})});toast(`Плата ${board}, образец ${sample}: gain тока ${select.value}`)}catch(e){toast(e.message,true)}};
+    let hint=card.querySelector('[data-current-gain-hint]');
+    if(!hint){hint=document.createElement('div');hint.className='sub';hint.dataset.currentGainHint='1';controls.insertAdjacentElement('afterend',hint)}
+    hint.textContent=`Токовый ADC: диапазон 0…${Number(ch.current_adc_range_v||0).toFixed(3)} В, максимум ${(ch.max_current||0).toFixed(3)} мА, шаг ${Number(ch.current_adc_lsb_uv||0).toFixed(4)} мкВ/бит`;
+  });
+}
+function collectCalibration(){
+  return calibrationDraft?cloneValue(calibrationDraft):{};
+}
+function renderRecord(recording,channels){
+  $('#recordStatus').textContent=recording.active?`${recording.message} · интервал ${recording.interval} с`:recording.message;
+  $('#recordDir').textContent=recording.dir?`Папка: ${recording.dir}`:'';
+  $('#startRecord').disabled=recording.active;$('#stopRecord').disabled=!recording.active;
+  $('#recordBoardGraphs').innerHTML=boardIdsFromChannels(channels).map(board=>`<button class="btn" data-record-board="${board}">Развернуть тренд платы ${board}</button>`).join('');
+  document.querySelectorAll('[data-record-board]').forEach(button=>button.onclick=()=>openRecordChart(+button.dataset.recordBoard));
+  $('#recordCards').innerHTML=(channels||[]).map(ch=>`<div class="panel record-card"><div class="sub">Плата ${ch.board} · обр. ${ch.sample}</div><strong>${recording.counts?.[ch.key]||0}</strong><div class="sub">строк</div></div>`).join('');
+}
+function recordMetricOptions(){return {u:{label:'Напряжение',unit:'В',title:'Напряжение, В'},i:{label:'Ток',unit:'мА',title:'Ток, мА'},photo:{label:'Яркость',unit:'',title:'Яркость'}}}
+function renderRecordChartFilters(){
+  let options=recordMetricOptions();
+  $('#recordMetricFilters').innerHTML=`<span class="filter-title">Величина</span>`+Object.entries(options).map(([key,opt])=>`<button class="tab-btn ${key===recordMetric?'active':''}" data-record-metric="${key}">${opt.label}</button>`).join('');
+  $('#recordChannelFilters').innerHTML=`<span class="filter-title">Каналы</span>`+[1,2,3,4].map(sample=>`<label class="toggle"><input type="checkbox" data-record-channel="${sample}" ${recordChannelVisible[sample]?'checked':''}> ${sample}</label>`).join('');
+  document.querySelectorAll('[data-record-metric]').forEach(button=>button.onclick=()=>{recordMetric=button.dataset.recordMetric;renderRecordChartFilters();rebuildRecordChart()});
+  document.querySelectorAll('[data-record-channel]').forEach(input=>input.onchange=()=>{recordChannelVisible[+input.dataset.recordChannel]=input.checked;rebuildRecordChart()});
+}
+function rebuildRecordChart(){
+  if(!recordHistory)return;
+  if(recordChart)recordChart.destroy();
+  let options=recordMetricOptions(),metric=options[recordMetric];
+  let datasets=(recordHistory.channels||[]).map(channel=>({label:`Канал ${channel.sample}`,sample:channel.sample,data:(channel.points||[]).map(point=>({x:point.elapsed_s/3600,y:point[recordMetric]})),borderColor:colors[(channel.sample-1)%colors.length],backgroundColor:colors[(channel.sample-1)%colors.length],pointRadius:0,borderWidth:2,tension:.08,hidden:!recordChannelVisible[channel.sample]}));
+  recordChart=new Chart($('#recordChart'),{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:false,normalized:true,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:true,labels:{color:'#ddd',usePointStyle:true,filter:item=>!item.hidden}},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(5)}${metric.unit?' '+metric.unit:''}`}}},scales:{x:{type:'linear',ticks:{color:'#aaa'},grid:{color:'#262626'},title:{display:true,text:'Время от начала записи, ч',color:'#aaa'}},y:{ticks:{color:'#aaa'},grid:{color:'#262626'},title:{display:true,text:metric.title,color:'#aaa'}}}}});
+}
+async function openRecordChart(board){
+  let modal=$('#recordChartModal');modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';
+  $('#recordChartTitle').textContent=`Полный тренд · плата ${board}`;$('#recordChartMeta').textContent='Чтение CSV…';$('#recordChartLoading').style.display='grid';
+  try{
+    recordHistory=await api(`/api/recording/board/${board}/history?max_points=6000`);
+    $('#recordChartMeta').textContent=`${recordHistory.run} · ${recordHistory.first_time} — ${recordHistory.last_time} · исходных точек: ${recordHistory.source_points}${recordHistory.active?' · запись продолжается':''}`;
+    renderRecordChartFilters();rebuildRecordChart();$('#recordChartLoading').style.display='none';
+  }catch(error){toast(error.message,true);closeRecordChart()}
+}
+function closeRecordChart(){
+  $('#recordChartModal').classList.remove('open');$('#recordChartModal').setAttribute('aria-hidden','true');document.body.style.overflow='';recordHistory=null;if(recordChart){recordChart.destroy();recordChart=null}
+}
+$('#closeRecordChart').onclick=closeRecordChart;
+$('#recordChartModal').onclick=event=>{if(event.target===$('#recordChartModal'))closeRecordChart()};
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&$('#recordChartModal').classList.contains('open'))closeRecordChart()});
+function rebuildChart(channels){
+  let canvas=$('#liveChart');
+  if(chart)chart.destroy();
+  chartDatasets=[];
+  const metrics={u:{label:'U',axis:'yU',dash:[]},i:{label:'I',axis:'yI',dash:[7,4]},photo:{label:'Фото',axis:'yP',dash:[2,4]}};
+  (channels||[]).forEach(ch=>Object.entries(metrics).forEach(([m,opt])=>chartDatasets.push({label:`${opt.label} · плата ${ch.board} · канал ${ch.sample}`,metric:m,channel:ch.key,board:Number(ch.board),sample:Number(ch.sample),data:[],borderColor:colors[(ch.sample-1)%colors.length],backgroundColor:colors[(ch.sample-1)%colors.length],borderDash:opt.dash,pointRadius:0,borderWidth:m==='u'?2.3:1.7,yAxisID:opt.axis,tension:.12})));
+  const axis=(title,pos,color)=>({type:'linear',position:pos,display:true,ticks:{color},grid:{color:pos==='left'?'#2a2a2a':'transparent'},title:{display:true,text:title,color}});
+  chart=new Chart(canvas,{type:'line',data:{datasets:chartDatasets},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:true,onClick:()=>{},labels:{color:'#bbb',boxWidth:18,usePointStyle:true,generateLabels:currentChart=>[1,2,3,4].map(sample=>{let datasetIndex=currentChart.data.datasets.findIndex(ds=>ds.sample===sample&&!ds.hidden);if(datasetIndex<0)return null;let ds=currentChart.data.datasets[datasetIndex];return{text:`Канал ${sample}`,fillStyle:ds.borderColor,strokeStyle:ds.borderColor,fontColor:'#bbb',hidden:false,datasetIndex}}).filter(Boolean)}}},scales:{x:{type:'linear',ticks:{color:'#aaa'},grid:{color:'#2a2a2a'},title:{display:true,text:'Время, с',color:'#aaa'}},yU:axis('Напряжение, В','left','#ff7a00'),yI:axis('Ток, мА','right','#fff'),yP:axis('Яркость','right','#ffb000')}}});
+}
+function renderChart(channels){
+  chartBoard=ensureSelectedBoard(channels,chartBoard);
+  let keys=(channels||[]).map(c=>c.key).join('|');
+  if(renderChart.lastKeys!==keys){renderChart.lastKeys=keys;rebuildChart(channels);renderChartBoardTabs(channels);renderFilters(channels)}
+  if(!chart)return;
+  let histories={};(channels||[]).forEach(ch=>histories[ch.key]=ch.history||[]);
+  chart.data.datasets.forEach(ds=>{ds.data=(histories[ds.channel]||[]).map(p=>({x:p.t,y:p[ds.metric]}));ds.hidden=ds.board!==chartBoard||!metricVisible[ds.metric]||!chartChannelVisible[ds.sample]});
+  let anyChannel=Object.values(chartChannelVisible).some(Boolean);
+  chart.options.scales.yU.display=metricVisible.u&&anyChannel;chart.options.scales.yI.display=metricVisible.i&&anyChannel;chart.options.scales.yP.display=metricVisible.photo&&anyChannel;chart.update('none');
+}
+function renderChartBoardTabs(channels){
+  chartBoard=ensureSelectedBoard(channels,chartBoard);
+  $('#chartBoardTabs').innerHTML=`<span class="filter-title">Плата</span>`+boardIdsFromChannels(channels).map(id=>`<button class="tab-btn ${id===chartBoard?'active':''}" data-chart-board="${id}">Плата ${id}</button>`).join('');
+  document.querySelectorAll('[data-chart-board]').forEach(button=>button.onclick=()=>{chartBoard=+button.dataset.chartBoard;renderChartBoardTabs(lastPayload?.channels||[]);renderFilters(lastPayload?.channels||[]);if(lastPayload)renderChart(lastPayload.channels)});
+}
+function renderFilters(){
+  let metricHtml=`<div class="filter-group"><span class="filter-title">Величины</span>`+['u','i','photo'].map(m=>`<label class="toggle"><input type="checkbox" data-chart-metric="${m}" ${metricVisible[m]?'checked':''}> ${m==='u'?'Напряжение':m==='i'?'Ток':'Яркость'}</label>`).join('')+`</div>`;
+  let channelHtml=`<div class="filter-group"><span class="filter-title">Каналы</span>`+[1,2,3,4].map(sample=>`<label class="toggle"><input type="checkbox" data-chart-channel="${sample}" ${chartChannelVisible[sample]?'checked':''}> ${sample}</label>`).join('')+`</div>`;
+  $('#chartFilters').innerHTML=metricHtml+channelHtml;
+  document.querySelectorAll('[data-chart-metric]').forEach(x=>x.onchange=()=>{metricVisible[x.dataset.chartMetric]=x.checked;if(lastPayload)renderChart(lastPayload.channels)});
+  document.querySelectorAll('[data-chart-channel]').forEach(x=>x.onchange=()=>{chartChannelVisible[+x.dataset.chartChannel]=x.checked;if(lastPayload)renderChart(lastPayload.channels)});
+}
+function update(payload){
+  lastPayload=payload;connected=payload.connected;$('#connDot').classList.toggle('on',connected);$('#connText').textContent=connected?'Подключено':'Не подключено';$('#connPort').textContent=connected?payload.port:'USB-RS485 не выбран';$('#connect').textContent=connected?'Отключить':'Подключить';
+  renderBoards(payload.boards);renderControlBoardTabs(payload.channels);let visibleControlChannels=channelsOfBoard(payload.channels,controlBoard);renderChannels(visibleControlChannels);renderCurrentGainControls(visibleControlChannels);renderCalibration(payload);renderRecord(payload.recording,payload.channels);renderChart(payload.channels);
+  $('#log').innerHTML=(payload.logs||[]).map(x=>`<div class="${esc(x.direction)}">${esc(x.time)} ${esc(x.direction)} ${esc(x.text)}</div>`).join('');$('#log').scrollTop=$('#log').scrollHeight;
+}
+function ws(){let proto=location.protocol==='https:'?'wss':'ws';let socket=new WebSocket(`${proto}://${location.host}/ws`);socket.onmessage=e=>update(JSON.parse(e.data));socket.onclose=()=>setTimeout(ws,1000)}ws();
+</script>
+</body>
+</html>

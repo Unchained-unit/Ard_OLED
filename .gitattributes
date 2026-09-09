@@ -1,0 +1,7 @@
+*.exe binary
+*.ico binary
+*.png binary
+*.pdf binary
+*.ino text eol=lf
+*.py text eol=lf
+*.md text eol=lf
