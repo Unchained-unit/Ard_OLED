@@ -326,6 +326,18 @@ class SetRequest(BaseModel):
     current_tolerance: float = 0.01
 
 
+class BoardCurrentRequest(BaseModel):
+    board: int
+    voltage: float
+    current: float
+    current_limit: float
+    current_tolerance: float = 0.01
+
+
+class BoardsCurrentRequest(BaseModel):
+    boards: list[BoardCurrentRequest]
+
+
 class PhotoGainRequest(BaseModel):
     board: int
     sample: int
@@ -757,8 +769,7 @@ class StationState:
         self.stop_controls("Связь отключена; примените уставку заново")
         self.bus.disconnect()
 
-    @serialized
-    def set_sample(self, req: SetRequest):
+    def validate_set_sample(self, req: SetRequest):
         if req.board not in self.board_ids:
             raise ValueError("Неизвестная плата")
         if not 1 <= req.sample <= SAMPLES_PER_BOARD:
@@ -783,6 +794,48 @@ class StationState:
                         2 * gain["lsb_uv"] * 1e-6 * abs(c["current_measure_scale"]))
         if req.current_feedback and req.current > 0 and req.current + tolerance >= req.current_limit:
             raise ValueError(f"Нужен запас до аварийного лимита больше {tolerance:.4f} мА")
+        return u_dac, i_dac, slope, tolerance
+
+    @serialized
+    def set_boards_current(self, req: BoardsCurrentRequest):
+        if not self.bus.connected:
+            raise ValueError("Сначала подключите USB-RS485")
+        if not req.boards or len({b.board for b in req.boards}) != len(req.boards):
+            raise ValueError("Выберите платы без повторяющихся адресов")
+        prepared = []
+        # Validate every channel before sending any output command.
+        for board in req.boards:
+            if board.board not in self.board_ids or not self.board_status.get(board.board, {}).get("online"):
+                raise ValueError(f"Плата {board.board} не подключена / не отвечает")
+            if board.current > 0 and board.voltage <= 0:
+                raise ValueError(f"Плата {board.board}: задайте положительное напряжение для подстройки тока")
+            channels = []
+            for sample in range(1, SAMPLES_PER_BOARD + 1):
+                channel = SetRequest(**board.model_dump(), sample=sample, current_feedback=True)
+                try:
+                    self.validate_set_sample(channel)
+                except Exception as exc:
+                    raise ValueError(f"Плата {board.board}, канал {sample}: {exc}") from exc
+                channels.append(channel)
+            prepared.append((board.board, channels))
+        results = []
+        for board_id, channels in prepared:
+            try:
+                for channel in channels:
+                    self.set_sample(channel)
+                results.append({"board": board_id, "ok": True, "message": "Уставки применены к 4 каналам"})
+            except Exception as exc:
+                results.append({"board": board_id, "ok": False, "message": str(exc)})
+        for board_id, _ in prepared:
+            for sample in range(1, SAMPLES_PER_BOARD + 1):
+                control = self.current_controls.get(self.key(board_id, sample))
+                if control and control.enabled:
+                    control.started = time.monotonic()
+        return {"ok": all(r["ok"] for r in results), "results": results}
+
+    @serialized
+    def set_sample(self, req: SetRequest):
+        u_dac, i_dac, slope, tolerance = self.validate_set_sample(req)
         key = self.key(req.board, req.sample)
         self.current_limits[key] = req.current_limit
         if key in self.current_controls:
@@ -799,6 +852,7 @@ class StationState:
             raise
         self.current_controls[key] = CurrentControl(
             req.current, slope, i_dac, tolerance,
+            voltage_v=req.voltage,
             enabled=req.current_feedback and req.current > 0,
             monitoring=req.current_feedback and req.current > 0,
             status="Подстройка" if req.current_feedback and req.current > 0 else
@@ -1316,6 +1370,14 @@ def board_status(board_id: int):
 def set_sample(req: SetRequest):
     try:
         return {"ok": True, "reply": state.set_sample(req)}
+    except Exception as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.post("/api/boards/current")
+def set_boards_current(req: BoardsCurrentRequest):
+    try:
+        return state.set_boards_current(req)
     except Exception as exc:
         raise HTTPException(400, str(exc))
 

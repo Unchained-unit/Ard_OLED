@@ -15,7 +15,8 @@
     .chart-panel{padding:14px}.chart-toolbar{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:10px}.chart-filter-area{display:grid;gap:7px;justify-items:end}.filter-group{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.filter-title{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#777;margin-right:3px}.filters{display:grid;gap:7px}.toggle{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:99px;padding:5px 9px;background:#0d0d0d;color:#eee;font-size:11px}.toggle input{accent-color:var(--orange)}.canvas-wrap{height:570px}.canvas-wrap canvas{max-height:570px}
     .record-layout{display:grid;grid-template-columns:300px 1fr;gap:14px}.stack{display:grid;gap:10px}.record-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:9px}.record-card{padding:12px}.record-card strong{display:block;font-size:22px;color:var(--orange);margin:4px 0}.record-board-actions{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}.calibration-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.cal-card{padding:10px;min-width:0}.cal-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.cal-fields label{font-size:9px;color:var(--muted);min-width:0}.cal-fields input,.cal-fields select{width:100%;margin-top:2px;padding:5px 6px;font-size:10px;white-space:nowrap;text-overflow:ellipsis}.cal-copy-actions{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:8px}.cal-copy-actions .btn{padding:7px 4px;font-size:9px}.note{padding:13px 15px;border:1px solid #59300c;background:#160d04;border-radius:12px;color:#e5d7c8;line-height:1.5;margin-bottom:13px}.log{height:650px;overflow:auto;background:#070707;border:1px solid var(--line);border-radius:14px;padding:14px;font:12px Consolas,monospace}.log div{padding:3px 0;color:#aaa}.log .tx{color:var(--orange)}.log .rx{color:#fff}.log .err{color:#ff9070}.modal{position:fixed;inset:0;background:#000c;display:none;align-items:center;justify-content:center;padding:24px;z-index:40;backdrop-filter:blur(5px)}.modal.open{display:flex}.modal-card{width:min(1400px,96vw);height:min(880px,92vh);padding:18px;display:grid;grid-template-rows:auto auto 1fr;gap:12px}.modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.modal-head h2{margin:0}.icon-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:#111;color:#fff;font-size:23px;cursor:pointer}.record-chart-wrap{min-height:0;position:relative}.record-chart-wrap canvas{width:100%!important;height:100%!important}.modal-loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);background:#0b0b0bdd;border-radius:10px;z-index:2}.toast{position:fixed;right:24px;bottom:24px;padding:13px 18px;border-radius:10px;background:#161616;border:1px solid var(--orange);box-shadow:0 12px 40px #0008;opacity:0;transform:translateY(10px);transition:.2s;pointer-events:none;z-index:50}.toast.show{opacity:1;transform:none}.toast.error{border-color:var(--red);color:#ffd1bf}
     @media(max-width:1100px){.shell{grid-template-columns:1fr}.side{position:relative;height:auto}.connection{position:static;margin-top:14px}.config-grid,.record-layout{grid-template-columns:1fr}.channel-grid,.calibration-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.filter-group{justify-content:flex-start}.chart-filter-area{justify-items:start}.chart-toolbar{display:grid}.canvas-wrap{height:420px}}
-    @media(max-width:680px){.channel-grid,.calibration-grid{grid-template-columns:1fr}}
+    .batch-card{padding:16px;margin-bottom:12px}.batch-settings{display:grid;grid-template-columns:repeat(4,minmax(100px,1fr));gap:10px;margin:12px 0}.batch-channels{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.batch-channel{background:#090909;border:1px solid var(--line);border-radius:9px;padding:10px;overflow-wrap:anywhere}.batch-channel strong{display:block;font-size:18px;margin:5px 0}.batch-channel .sub{font-size:11px}.batch-card.offline{opacity:.65}.batch-result{white-space:pre-line;margin:10px 0;color:var(--orange2)}
+    @media(max-width:680px){.channel-grid,.calibration-grid{grid-template-columns:1fr}.batch-settings,.batch-channels{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(min-width:1101px) and (max-height:850px){main{padding-top:14px;padding-bottom:14px}.topline{margin-bottom:8px}.settings{padding:10px}.status-grid{margin-bottom:6px}.board-tabs{margin:5px 0 7px}.channel-card{padding:9px 10px}.metrics{margin:5px 0}.channel-card>.sub,.channel-card .controls+.sub{margin-top:2px}.card-head{margin-bottom:5px}}
   </style>
 </head>
@@ -25,6 +26,7 @@
     <div class="brand"><i></i>NMSE OLEDer<br><span class="sub">RS-485 multi-board</span></div>
     <nav class="nav">
       <button class="active" data-view="control">Управление</button>
+      <button data-view="batch">Ток по платам</button>
       <button data-view="chart">Графики</button>
       <button data-view="record">Запись</button>
       <button data-view="calibration">Калибровка</button>
@@ -56,6 +58,13 @@
       <div id="boardStatus" class="status-grid"></div>
       <div id="controlBoardTabs" class="board-tabs" aria-label="Выбор платы управления"></div>
       <div id="channelGrid" class="channel-grid"></div>
+    </section>
+
+    <section id="batch" class="view">
+      <div class="topline"><div><h1>Ток по платам</h1><div class="sub">Одна уставка на плату · независимая подстройка четырёх каналов</div></div><div class="actions"><button class="btn primary" id="batchApplyAll">Установить все</button><button class="btn danger" id="batchZeroAll">Сбросить все</button></div></div>
+      <div class="note">«Установить все» применяет значения каждой строки ко всем отвечающим платам. Напряжение, лимит и допуск в строке общие для четырёх каналов. После трёх измерений в допуске каждый канал фиксирует свой ЦАП; повторная подстройка — только по кнопке. Нулевой ток обнуляет выходы.</div>
+      <div id="batchResult" class="batch-result" role="status" aria-live="polite"></div>
+      <div id="batchBoards"></div>
     </section>
 
     <section id="chart" class="view">
@@ -160,6 +169,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const api=async(path,opt={})=>{let r=await fetch(path,{headers:{'Content-Type':'application/json'},...opt});if(!r.ok){let e=await r.json().catch(()=>({detail:r.statusText}));throw Error(e.detail)}return r.json()};
 const colors=['#ff7a00','#ffffff','#ffb000','#8f8f8f','#ff5a1f','#d0d0d0','#ff9636','#6f6f6f'];
 let connected=false,lastPayload=null,channelState={},chart=null,chartDatasets=[];
+let batchState={},batchBusy=false;
 let controlBoard=null,chartBoard=null;
 let metricVisible={u:true,i:true,photo:false};
 let chartChannelVisible={1:true,2:true,3:true,4:true};
@@ -217,7 +227,62 @@ function renderBoards(boards){
   let ids=Object.keys(boards||{}).sort((a,b)=>+a-+b);
   $('#boardStatus').innerHTML=ids.map(id=>{let b=boards[id];return `<div class="panel board-pill ${b.online?'ok':'bad'}"><strong>Плата ${id}</strong><div class="sub">${esc(b.status||'—')}</div><div class="sub">последний ответ: ${esc(b.last_seen||'—')}</div></div>`}).join('');
 }
-function ensureChannelDefaults(ch){if(!channelState[ch.key])channelState[ch.key]={voltage:0,current:ch.current_control?.target_ma||0,limit:Math.max(0.1,ch.current_limit||ch.max_current||20),feedback:ch.current_control?ch.current_control.monitoring:true,tolerance:ch.current_control?.tolerance_ma||0.01};let s=channelState[ch.key];if(s.limit>(ch.max_current||20))s.limit=ch.max_current||20;return s}
+function ensureChannelDefaults(ch){if(!channelState[ch.key])channelState[ch.key]={voltage:ch.current_control?.voltage_v||0,current:ch.current_control?.target_ma||0,limit:Math.max(0.1,ch.current_limit||ch.max_current||20),feedback:ch.current_control?ch.current_control.monitoring:true,tolerance:ch.current_control?.tolerance_ma||0.01};let s=channelState[ch.key];if(s.limit>(ch.max_current||20))s.limit=ch.max_current||20;return s}
+
+function batchOnline(id){return connected&&!!lastPayload?.boards?.[id]?.online}
+function ensureBatchState(id,channels){
+  if(!batchState[id]){let ch=channels[0],s=ch?ensureChannelDefaults(ch):{};batchState[id]={current:s.current||0,voltage:s.voltage||0,current_limit:Math.min(...channels.map(c=>c.current_limit||c.max_current||20)),current_tolerance:s.tolerance||0.01}}
+  return batchState[id];
+}
+function renderBatch(payload){
+  let ids=boardIdsFromChannels(payload.channels),key=ids.join(',');
+  if(renderBatch.key!==key){
+    renderBatch.key=key;
+    $('#batchBoards').innerHTML=ids.map(id=>{
+      let s=ensureBatchState(id,channelsOfBoard(payload.channels,id));
+      let fields=[['current','Ток всех каналов, мА','0.01'],['voltage','Напряжение, В','0.1'],['current_limit','Аварийный лимит, мА','0.1'],['current_tolerance','Допуск ± мА','0.001']];
+      return `<div class="panel batch-card" data-batch-card="${id}"><div class="card-head"><h3>Плата ${id}</h3><span class="badge" data-batch-online="${id}"></span></div><div class="batch-settings">${fields.map(([field,label,step])=>`<label class="small">${label}<input class="field" type="number" min="0" step="${step}" value="${s[field]}" data-batch-board="${id}" data-batch-field="${field}"></label>`).join('')}</div><div class="actions"><button class="btn primary" data-batch-apply="${id}">Установить · 4 канала</button><button class="btn danger" data-batch-zero="${id}">Сбросить плату</button></div><div class="sub" data-batch-range="${id}"></div><div class="batch-channels" style="margin-top:12px">${[1,2,3,4].map(sample=>`<div class="batch-channel"><span>Канал ${sample}</span><strong data-batch-current="${id}:${sample}">—</strong><div class="sub" data-batch-status="${id}:${sample}">Уставка не применена</div></div>`).join('')}</div></div>`;
+    }).join('')||'<div class="note">Добавьте адреса плат во вкладке «Управление» и подключите USB-RS485.</div>';
+    document.querySelectorAll('[data-batch-field]').forEach(input=>input.oninput=()=>{batchState[input.dataset.batchBoard][input.dataset.batchField]=input.value===''?null:Number(input.value)});
+    document.querySelectorAll('[data-batch-apply]').forEach(b=>b.onclick=()=>applyBatch([Number(b.dataset.batchApply)]));
+    document.querySelectorAll('[data-batch-zero]').forEach(b=>b.onclick=()=>zeroBatch(Number(b.dataset.batchZero)));
+  }
+  $('#batchApplyAll').disabled=batchBusy||!ids.some(batchOnline);
+  $('#batchZeroAll').disabled=!connected;
+  ids.forEach(id=>{
+    let online=batchOnline(id),card=document.querySelector(`[data-batch-card="${id}"]`);
+    card.classList.toggle('offline',!online);card.querySelector('[data-batch-online]').textContent=online?'На связи':'Нет связи';
+    card.querySelector('[data-batch-apply]').disabled=batchBusy||!online;
+    card.querySelector('[data-batch-zero]').disabled=!connected;
+    card.querySelectorAll('input').forEach(input=>input.disabled=batchBusy);
+    let channels=channelsOfBoard(payload.channels,id),max=Math.min(...channels.map(c=>c.max_current));
+    card.querySelector('[data-batch-range]').textContent=`Общий измеряемый диапазон четырёх каналов: до ${max.toFixed(3)} мА. Значения полей применяются только по кнопке.`;
+    channels.forEach(ch=>{
+      let c=ch.current_control,p=ch.latest;
+      card.querySelector(`[data-batch-current="${ch.key}"]`).textContent=p?`${p.i.toFixed(4)} мА`:'—';
+      card.querySelector(`[data-batch-status="${ch.key}"]`).textContent=c?`${c.status} · цель ${c.target_ma.toFixed(4)} ±${c.tolerance_ma.toFixed(4)} мА · ЦАП ${c.dac_v.toFixed(4)} В`:'Уставка не применена';
+    });
+  });
+}
+async function applyBatch(ids){
+  if(batchBusy)return;
+  let boards=ids.map(board=>({board,...batchState[board]}));
+  if(boards.some(b=>Object.values(b).some(v=>v===null||!Number.isFinite(v)))){toast('Заполните все поля числовыми значениями',true);return}
+  batchBusy=true;renderBatch(lastPayload);$('#batchResult').textContent='Применение уставок к платам…';
+  try{
+    let result=await api('/api/boards/current',{method:'POST',body:JSON.stringify({boards})});
+    $('#batchResult').textContent=result.results.map(r=>`Плата ${r.board}: ${r.ok?'✓':'Ошибка —'} ${r.message}`).join('\n');
+    result.results.filter(r=>r.ok).forEach(r=>{let b=boards.find(b=>b.board===r.board);for(let sample=1;sample<=4;sample++){channelState[`${r.board}:${sample}`]={voltage:b.voltage,current:b.current,limit:b.current_limit,tolerance:b.current_tolerance,feedback:true}}});
+    renderChannels.lastKeys='';toast(result.ok?'Уставки применены. Каналы подстраиваются независимо.':'Не все платы приняли уставки; подробности на вкладке.',!result.ok);
+  }catch(e){$('#batchResult').textContent=e.message;toast(e.message,true)}
+  finally{batchBusy=false;if(lastPayload)renderBatch(lastPayload)}
+}
+async function zeroBatch(board=null){
+  try{await api(board===null?'/api/zero':`/api/zero/${board}`,{method:'POST'});$('#batchResult').textContent=board===null?'Все платы обнулены. Подстройка остановлена.':`Плата ${board} обнулена. Подстройка остановлена.`;toast('Сброс выполнен')}
+  catch(e){$('#batchResult').textContent=e.message;toast(e.message,true)}
+}
+$('#batchApplyAll').onclick=()=>applyBatch(boardIdsFromChannels(lastPayload?.channels||[]).filter(batchOnline));
+$('#batchZeroAll').onclick=()=>zeroBatch();
 function renderControlBoardTabs(channels){
   controlBoard=ensureSelectedBoard(channels,controlBoard);
   let ids=boardIdsFromChannels(channels);
@@ -368,7 +433,7 @@ function renderFilters(){
 }
 function update(payload){
   lastPayload=payload;connected=payload.connected;$('#connDot').classList.toggle('on',connected);$('#connText').textContent=connected?'Подключено':'Не подключено';$('#connPort').textContent=connected?payload.port:'USB-RS485 не выбран';$('#connect').textContent=connected?'Отключить':'Подключить';
-  renderBoards(payload.boards);renderControlBoardTabs(payload.channels);let visibleControlChannels=channelsOfBoard(payload.channels,controlBoard);renderChannels(visibleControlChannels);renderCurrentGainControls(visibleControlChannels);renderCalibration(payload);renderRecord(payload.recording,payload.channels);renderChart(payload.channels);
+  renderBoards(payload.boards);renderBatch(payload);renderControlBoardTabs(payload.channels);let visibleControlChannels=channelsOfBoard(payload.channels,controlBoard);renderChannels(visibleControlChannels);renderCurrentGainControls(visibleControlChannels);renderCalibration(payload);renderRecord(payload.recording,payload.channels);renderChart(payload.channels);
   $('#log').innerHTML=(payload.logs||[]).map(x=>`<div class="${esc(x.direction)}">${esc(x.time)} ${esc(x.direction)} ${esc(x.text)}</div>`).join('');$('#log').scrollTop=$('#log').scrollHeight;
 }
 function ws(){let proto=location.protocol==='https:'?'wss':'ws';let socket=new WebSocket(`${proto}://${location.host}/ws`);socket.onmessage=e=>update(JSON.parse(e.data));socket.onclose=()=>setTimeout(ws,1000)}ws();

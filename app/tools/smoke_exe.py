@@ -34,9 +34,11 @@ def main():
         fields = schema["components"]["schemas"]["SetRequest"]["properties"]
         assert fields["current_feedback"]["default"] is True
         assert fields["current_tolerance"]["default"] == .01
+        assert "/api/boards/current" in schema["paths"]
         with urlopen(base, timeout=3) as response:
             html = response.read().decode("utf-8")
         assert "Подстроить ток по АЦП и зафиксировать" in html
+        assert 'id="batchApplyAll"' in html and 'id="batchZeroAll"' in html
         with connect(f"ws://127.0.0.1:{port}/ws", open_timeout=5) as ws:
             snapshot = json.loads(ws.recv(timeout=5))
             assert not snapshot["connected"]

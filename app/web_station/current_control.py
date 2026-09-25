@@ -19,6 +19,7 @@ class CurrentControl:
     settled: int = 0
     started: float = 0.0
     last_millis: int | None = None
+    voltage_v: float = 0.0
 
     def __post_init__(self):
         self.started = time.monotonic()

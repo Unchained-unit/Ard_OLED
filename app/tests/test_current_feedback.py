@@ -56,6 +56,65 @@ def point(current, tick=1, sample=1, board=1, raw=None):
 
 
 class CurrentFeedbackTests(unittest.TestCase):
+    def bulk_request(self, **overrides):
+        values = dict(board=1, voltage=3, current=.3, current_limit=2)
+        values.update(overrides)
+        return main.BoardCurrentRequest(**values)
+
+    def test_bulk_applies_four_channels_with_individual_calibrations(self):
+        s = station()
+        s.board_status[1]["online"] = True
+        s.config["calibration"]["1"][1]["current_dac_scale"] = 2
+        result = s.set_boards_current(main.BoardsCurrentRequest(boards=[self.bulk_request()]))
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(s.bus.commands), 4)
+        self.assertEqual(len(s.current_controls), 4)
+        self.assertAlmostEqual(s.current_controls["1:1"].dac_v, .075)
+        self.assertAlmostEqual(s.current_controls["1:2"].dac_v, .15)
+        self.assertTrue(all(c.enabled for c in s.current_controls.values()))
+
+    def test_bulk_preflight_rejects_all_before_any_writes(self):
+        s = station()
+        for board in (1, 2):
+            s.board_status[board]["online"] = True
+        s.config["calibration"]["2"][3]["current_measure_scale"] = .1
+        with self.assertRaises(ValueError):
+            s.set_boards_current(main.BoardsCurrentRequest(boards=[self.bulk_request(), self.bulk_request(board=2)]))
+        self.assertEqual(s.bus.commands, [])
+
+    def test_bulk_offline_duplicate_empty_and_zero_voltage_rejected(self):
+        for boards in [[], [self.bulk_request()], [self.bulk_request(),self.bulk_request()], [self.bulk_request(voltage=0)]]:
+            s = station()
+            if len(boards) != 1 or boards[0].voltage == 0:
+                s.board_status[1]["online"] = True
+            with self.assertRaises(ValueError):
+                s.set_boards_current(main.BoardsCurrentRequest(boards=boards))
+            self.assertEqual(s.bus.commands, [])
+
+    def test_bulk_reports_partial_hardware_failure_and_zeros_failed_board(self):
+        s = station()
+        for board in (1, 2):
+            s.board_status[board]["online"] = True
+        original = s.bus.transact
+        def transact(board, command, **kwargs):
+            reply = original(board, command, **kwargs)
+            return [] if board == 1 and command.startswith("SET,2,") else reply
+        s.bus.transact = transact
+        result = s.set_boards_current(main.BoardsCurrentRequest(boards=[self.bulk_request(),self.bulk_request(board=2,current=.6)]))
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["results"][0]["ok"])
+        self.assertTrue(result["results"][1]["ok"])
+        self.assertIn((1,"ZERO"), s.bus.commands)
+        self.assertFalse(s.current_controls["1:1"].enabled)
+        self.assertEqual(s.current_controls["2:4"].target_ma, .6)
+
+    def test_bulk_zero_target_does_not_arm(self):
+        s = station()
+        s.board_status[1]["online"] = True
+        s.set_boards_current(main.BoardsCurrentRequest(boards=[self.bulk_request(current=0,voltage=0)]))
+        self.assertEqual(len(s.current_controls),4)
+        self.assertFalse(any(c.enabled for c in s.current_controls.values()))
+
     def test_converges_with_offset_then_freezes_despite_drift(self):
         s = station()
         s.set_sample(request())
