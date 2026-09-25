@@ -14,6 +14,7 @@ import webbrowser
 import zipfile
 from collections import deque
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,19 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from serial.tools import list_ports
+try:
+    from .current_control import CurrentControl, DAC_STEP_V
+except ImportError:  # PyInstaller executes main.py as a script.
+    from current_control import CurrentControl, DAC_STEP_V
+
+
+def serialized(method):
+    @wraps(method)
+    def call(self, *args, **kwargs):
+        lock = self.__dict__.setdefault("control_lock", threading.RLock())
+        with lock:
+            return method(self, *args, **kwargs)
+    return call
 
 
 APP_NAME = "NMSE OLEDer RS-485"
@@ -308,6 +322,8 @@ class SetRequest(BaseModel):
     voltage: float
     current: float
     current_limit: float
+    current_feedback: bool = True
+    current_tolerance: float = 0.01
 
 
 class PhotoGainRequest(BaseModel):
@@ -403,6 +419,8 @@ class StationState:
         self.latest = {}
         self.history = {}
         self.current_limits = {}
+        self.current_controls = {}
+        self.control_lock = threading.RLock()
         self.running = True
         self.live = True
         self.recording_active = False
@@ -457,7 +475,9 @@ class StationState:
             temporary.write_text(payload, encoding="utf-8")
             os.replace(temporary, path)
 
+    @serialized
     def apply_config(self, request: ConfigRequest):
+        self.require_idle_controls()
         board_ids = clean_board_ids(request.board_ids)
         shunt = float(request.shunt_ohm)
         gain = float(request.current_gain)
@@ -497,7 +517,9 @@ class StationState:
         self.ensure_runtime_maps()
         self.save_config()
 
+    @serialized
     def apply_calibration(self, request: CalibrationRequest):
+        self.require_idle_controls()
         config = ensure_config_shape(self.config)
         incoming = request.calibration or {}
         for board_id in config["board_ids"]:
@@ -532,7 +554,9 @@ class StationState:
         self.apply_all_photo_gains()
         self.apply_all_current_adc_gains()
 
+    @serialized
     def import_calibration(self, request: CalibrationImportRequest):
+        self.require_idle_controls()
         config = ensure_config_shape(self.config)
         incoming = request.calibration or {}
         scale = current_scale_from_hardware(
@@ -583,7 +607,11 @@ class StationState:
         self.apply_all_current_adc_gains()
         return imported_boards
 
+    @serialized
     def connect(self, port, board_ids=None):
+        if self.bus.connected:
+            self.disconnect()
+        self.stop_controls("Подключение изменено; примените уставку заново")
         if board_ids:
             hardware = self.config["hardware"]
             self.apply_config(ConfigRequest(board_ids=board_ids, shunt_ohm=hardware["shunt_ohm"], current_gain=hardware["current_gain"]))
@@ -648,7 +676,9 @@ class StationState:
     def send_current_adc_gain(self, board_id, sample, gain):
         return self.bus.transact(board_id, f"ICGAIN,{sample},{gain}", timeout=1.0)
 
+    @serialized
     def set_current_adc_gain(self, req: CurrentAdcGainRequest):
+        self.require_idle_controls()
         if req.board not in self.board_ids:
             raise ValueError("Неизвестная плата")
         if not 1 <= req.sample <= SAMPLES_PER_BOARD:
@@ -691,6 +721,43 @@ class StationState:
             raise ValueError(f"Плата {board_id}, образец {sample}: максимум уставки тока {max_current:.3f} мА")
         return u, i
 
+    def require_idle_controls(self):
+        if any(c.monitoring for c in getattr(self, "current_controls", {}).values()):
+            raise ValueError("Перед изменением калибровки, gain тока или состава плат нажмите ZERO")
+
+    def stop_controls(self, reason, board_id=None):
+        for key, control in getattr(self, "current_controls", {}).items():
+            if board_id is None or key.startswith(f"{board_id}:"):
+                control.stop(reason)
+
+    def checked_dac(self, board_id, sample, command, modes):
+        reply = self.bus.transact(board_id, command, timeout=1.2)
+        if any(line.startswith(f"{board_id},ERR,") for line in reply) or not all(
+            any(line.startswith(f"{board_id},OK,DAC,{sample},{mode},") for line in reply)
+            for mode in modes
+        ):
+            raise RuntimeError("Плата не подтвердила запись ЦАП")
+        return reply
+
+    def trip_board(self, board_id, reason):
+        self.stop_controls(reason, board_id)
+        self.bus.log("err", f"board {board_id}: {reason}")
+        try:
+            self.zero_board(board_id)
+            self.stop_controls(f"Остановлено: {reason}; ZERO подтверждён", board_id)
+        except Exception as exc:
+            self.stop_controls(f"Остановлено: {reason}; ZERO НЕ подтверждён", board_id)
+            self.bus.log("err", f"ZERO {board_id}: {exc}")
+
+    @serialized
+    def disconnect(self):
+        for board_id in self.board_ids:
+            if any(c.monitoring for key, c in self.current_controls.items() if key.startswith(f"{board_id}:")):
+                self.trip_board(board_id, "Отключение")
+        self.stop_controls("Связь отключена; примените уставку заново")
+        self.bus.disconnect()
+
+    @serialized
     def set_sample(self, req: SetRequest):
         if req.board not in self.board_ids:
             raise ValueError("Неизвестная плата")
@@ -705,16 +772,60 @@ class StationState:
         if req.current > req.current_limit:
             raise ValueError("Уставка тока выше аварийного лимита")
         u_dac, i_dac = self.dac_values(req.board, req.sample, req.voltage, req.current)
-        self.current_limits[self.key(req.board, req.sample)] = req.current_limit
-        return self.bus.transact(req.board, f"SET,{req.sample},{u_dac:.6f},{i_dac:.6f}", timeout=1.2)
+        c = self.calibration_for(req.board, req.sample)
+        slope = c["current_dac_scale"] * c["current_output_correction"]
+        if not math.isfinite(slope) or slope <= 0:
+            raise ValueError("Токовый коэффициент ЦАП должен быть положительным")
+        gain = ADS_GAIN_OPTIONS[c["current_adc_gain"]]
+        if not math.isfinite(req.current_tolerance) or not 0 < req.current_tolerance <= 5:
+            raise ValueError("Допуск тока должен быть больше 0 и не больше 5 мА")
+        tolerance = max(req.current_tolerance, DAC_STEP_V * slope,
+                        2 * gain["lsb_uv"] * 1e-6 * abs(c["current_measure_scale"]))
+        if req.current_feedback and req.current > 0 and req.current + tolerance >= req.current_limit:
+            raise ValueError(f"Нужен запас до аварийного лимита больше {tolerance:.4f} мА")
+        key = self.key(req.board, req.sample)
+        self.current_limits[key] = req.current_limit
+        if key in self.current_controls:
+            self.current_controls[key].stop("Новая уставка")
+        # Zero target explicitly disables both outputs. Never integrate upwards
+        # from a zero target to compensate measurement offsets.
+        if req.current_feedback and req.current == 0:
+            u_dac = i_dac = 0.0
+        try:
+            reply = self.checked_dac(req.board, req.sample,
+                                     f"SET,{req.sample},{u_dac:.6f},{i_dac:.6f}", "VI")
+        except Exception:
+            self.trip_board(req.board, "Ошибка применения уставки")
+            raise
+        self.current_controls[key] = CurrentControl(
+            req.current, slope, i_dac, tolerance,
+            enabled=req.current_feedback and req.current > 0,
+            monitoring=req.current_feedback and req.current > 0,
+            status="Подстройка" if req.current_feedback and req.current > 0 else
+                   ("Нулевая уставка: выходы обнулены" if req.current_feedback else "Ручная уставка ЦАП"),
+        )
+        return reply
 
+    @serialized
     def zero_board(self, board_id):
-        return self.bus.transact(board_id, "ZERO", timeout=2.0)
+        self.stop_controls("ZERO: регулирование выключено", board_id)
+        reply = self.bus.transact(board_id, "ZERO", timeout=2.0)
+        if f"{board_id},OK,ZERO" not in reply or any(f"{board_id},ERR," in line for line in reply):
+            self.stop_controls("ZERO НЕ подтверждён; проверьте выходы платы", board_id)
+            raise RuntimeError(f"Плата {board_id}: ZERO не подтверждён")
+        return reply
 
+    @serialized
     def zero_all(self):
         replies = {}
+        errors = []
         for board_id in self.board_ids:
-            replies[str(board_id)] = self.zero_board(board_id)
+            try:
+                replies[str(board_id)] = self.zero_board(board_id)
+            except Exception as exc:
+                errors.append(str(exc))
+        if errors:
+            raise RuntimeError("; ".join(errors))
         return replies
 
     def parse_data_line(self, line):
@@ -726,6 +837,10 @@ class StationState:
         raw_u = float(parts[4])
         raw_i = float(parts[5])
         raw_photo = float(parts[6])
+        if board_id not in self.board_ids or not 1 <= sample <= SAMPLES_PER_BOARD:
+            return None
+        if not all(math.isfinite(v) for v in (raw_u, raw_i, raw_photo)):
+            return None
         c = self.calibration_for(board_id, sample)
 
         # Current firmware protocol:
@@ -739,6 +854,8 @@ class StationState:
         if len(parts) >= 9:
             parsed_device_u = float(parts[7])
             parsed_device_i = float(parts[8])
+            if not math.isfinite(parsed_device_u) or not math.isfinite(parsed_device_i):
+                return None
             if math.isfinite(parsed_device_u) and math.isfinite(parsed_device_i):
                 device_u = parsed_device_u
                 device_i = parsed_device_i
@@ -757,6 +874,8 @@ class StationState:
 
         dynamic_current_offset_ma = current_offset_from_voltage(c, voltage)
         current = current_before_dynamic_offset - dynamic_current_offset_ma
+        if not all(math.isfinite(v) for v in (voltage, current)):
+            return None
 
         point = {
             "t": round(time.monotonic() - self.started, 3),
@@ -780,6 +899,7 @@ class StationState:
         self.history[key].append(point)
         return key, point
 
+    @serialized
     def read_board(self, board_id):
         lines = self.bus.transact(board_id, "READ", timeout=3.5, until_end=True)
         data = {}
@@ -796,14 +916,48 @@ class StationState:
             "status": f"DATA {len(data)}" if data else ("; ".join(errors) if errors else "нет DATA"),
             "last_seen": datetime.now().strftime("%H:%M:%S") if online else self.board_status.get(board_id, {}).get("last_seen"),
         }
+        self.regulate_board(board_id, data, bool(errors) or f"{board_id},END" not in lines)
         return data
 
+    def regulate_board(self, board_id, data, frame_error=False):
+        active = [(key, c) for key, c in self.current_controls.items()
+                  if key.startswith(f"{board_id}:") and c.monitoring]
+        if not active:
+            return
+        try:
+            if frame_error or any(key not in data for key, _ in active):
+                raise ValueError("Нет свежих полных данных АЦП")
+            # Check every active channel before increasing any output.
+            for key, control in active:
+                p = data[key]
+                cal = self.calibration_for(board_id, p["sample"])
+                info = ADS_GAIN_OPTIONS[cal["current_adc_gain"]]
+                if p["raw_i"] >= min(5.0, info["full_scale_v"]) - 2 * info["lsb_uv"] * 1e-6:
+                    raise ValueError(f"Канал {p['sample']}: насыщение АЦП тока")
+                if p["i"] >= self.current_limits[key]:
+                    raise ValueError(f"Канал {p['sample']}: аварийный лимит тока")
+            for key, control in active:
+                p = data[key]
+                if not control.enabled:
+                    if control.last_millis is not None and p["device_millis"] <= control.last_millis:
+                        raise ValueError("Повтор данных или перезапуск платы; примените уставку заново")
+                    control.last_millis = p["device_millis"]
+                candidate = control.update(p["i"], p["device_millis"])
+                if candidate is not None:
+                    self.checked_dac(board_id, p["sample"], f"IDAC,{p['sample']},{candidate:.6f}", "I")
+                    control.dac_v = candidate
+        except Exception as exc:
+            self.trip_board(board_id, str(exc))
+
+    @serialized
     def read_all_boards(self):
         points = {}
         for board_id in self.board_ids:
             try:
                 points.update(self.read_board(board_id))
             except Exception as exc:
+                if any(c.monitoring for key, c in self.current_controls.items() if key.startswith(f"{board_id}:")):
+                    self.trip_board(board_id, f"Ошибка чтения: {exc}")
                 self.board_status[board_id] = {"online": False, "status": str(exc), "last_seen": self.board_status.get(board_id, {}).get("last_seen")}
         return points
 
@@ -813,7 +967,7 @@ class StationState:
                 try:
                     self.read_all_boards()
                 except (serial.SerialException, OSError):
-                    self.bus.disconnect()
+                    self.disconnect()
                 except Exception as exc:
                     self.bus.log("err", exc)
             time.sleep(0.8)
@@ -908,15 +1062,19 @@ class StationState:
         try:
             while not self.recording_cancel.is_set() and self.bus.connected:
                 now = time.monotonic()
-                if now < next_tick:
+                feedback = any(c.monitoring for c in list(self.current_controls.values()))
+                if now < next_tick and not feedback:
                     self.recording_cancel.wait(min(0.2, next_tick - now))
                     continue
                 points = self.read_all_boards()
-                for point in points.values():
-                    self.append_recording_point(point)
+                if now >= next_tick:
+                    for point in points.values():
+                        self.append_recording_point(point)
+                    next_tick = time.monotonic() + self.recording_interval
                 total = sum(self.recording_counts.values())
                 self.recording_message = f"Записано строк: {total}"
-                next_tick += self.recording_interval
+                if feedback:
+                    self.recording_cancel.wait(0.8)
         except Exception as exc:
             self.recording_message = f"Ошибка записи: {exc}"
         finally:
@@ -1024,6 +1182,7 @@ class StationState:
                     "latest": self.latest.get(key),
                     "history": list(self.history.get(key, []))[-240:],
                     "current_limit": self.current_limits.get(key, self.measurable_current_max(board_id, sample)),
+                    "current_control": vars(self.current_controls[key]).copy() if key in self.current_controls else None,
                     "max_current": self.measurable_current_max(board_id, sample),
                     "current_adc_gain": current_adc_gain,
                     "current_adc_range_v": min(5.0, current_gain_info["full_scale_v"]),
@@ -1121,7 +1280,7 @@ def connect(req: ConnectRequest):
 @app.post("/api/disconnect")
 def disconnect():
     state.stop_recording()
-    state.bus.disconnect()
+    state.disconnect()
     return {"ok": True}
 
 
@@ -1130,7 +1289,7 @@ def shutdown():
     def stop_process():
         state.running = False
         state.recording_cancel.set()
-        state.bus.disconnect()
+        state.disconnect()
         os._exit(0)
     threading.Timer(0.35, stop_process).start()
     return {"ok": True}

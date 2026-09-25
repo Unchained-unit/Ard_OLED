@@ -217,7 +217,7 @@ function renderBoards(boards){
   let ids=Object.keys(boards||{}).sort((a,b)=>+a-+b);
   $('#boardStatus').innerHTML=ids.map(id=>{let b=boards[id];return `<div class="panel board-pill ${b.online?'ok':'bad'}"><strong>Плата ${id}</strong><div class="sub">${esc(b.status||'—')}</div><div class="sub">последний ответ: ${esc(b.last_seen||'—')}</div></div>`}).join('');
 }
-function ensureChannelDefaults(ch){if(!channelState[ch.key])channelState[ch.key]={voltage:0,current:0,limit:Math.max(0.1,ch.max_current||20)};let s=channelState[ch.key];if(s.limit>(ch.max_current||20))s.limit=ch.max_current||20;return s}
+function ensureChannelDefaults(ch){if(!channelState[ch.key])channelState[ch.key]={voltage:0,current:ch.current_control?.target_ma||0,limit:Math.max(0.1,ch.current_limit||ch.max_current||20),feedback:ch.current_control?ch.current_control.monitoring:true,tolerance:ch.current_control?.tolerance_ma||0.01};let s=channelState[ch.key];if(s.limit>(ch.max_current||20))s.limit=ch.max_current||20;return s}
 function renderControlBoardTabs(channels){
   controlBoard=ensureSelectedBoard(channels,controlBoard);
   let ids=boardIdsFromChannels(channels);
@@ -234,7 +234,7 @@ function renderChannels(channels){
   $('#channelGrid').innerHTML=(channels||[]).map(ch=>{let s=ensureChannelDefaults(ch),p=ch.latest,c=colors[(ch.sample-1)%colors.length];return `<div class="panel channel-card" style="border-color:${c}55"><div class="card-head"><h3>Образец ${ch.sample}</h3><span class="badge">канал ${ch.sample}</span></div><div class="controls"><label>U, В<input class="field" data-key="${ch.key}" data-field="voltage" type="number" min="0" step="0.05" value="${s.voltage}"></label><label>I, мА<input class="field" data-key="${ch.key}" data-field="current" type="number" min="0" max="${ch.max_current}" step="0.1" value="${s.current}"></label><label>Лимит, мА<input class="field" data-key="${ch.key}" data-field="limit" type="number" min="0.1" max="${ch.max_current}" step="0.1" value="${s.limit}"></label><label>Gain яркости${gainSelectHtml(ch.photo_adc_gain,`data-photo-gain="${ch.key}"`)}</label></div><div class="sub" data-measure-source="${ch.key}">Источник измерения: —</div><div class="metrics"><div class="metric"><small>U</small><strong data-metric-value="${ch.key}:u">${p?p.u.toFixed(4)+' В':'—'}</strong></div><div class="metric"><small>I</small><strong data-metric-value="${ch.key}:i">${p?p.i.toFixed(4)+' мА':'—'}</strong></div><div class="metric"><small>Яркость</small><strong data-metric-value="${ch.key}:photo">${p?p.photo.toFixed(4):'—'}</strong></div></div><div class="card-actions"><button class="btn primary" data-apply="${ch.key}">Применить</button><button class="btn danger" data-zero-board="${ch.board}">ZERO платы</button></div></div>`}).join('');
   document.querySelectorAll('[data-field]').forEach(x=>x.oninput=()=>{channelState[x.dataset.key][x.dataset.field]=+x.value});
   document.querySelectorAll('[data-photo-gain]').forEach(x=>x.onchange=async()=>{let [board,sample]=x.dataset.photoGain.split(':').map(Number);try{await api('/api/photo-gain',{method:'POST',body:JSON.stringify({board,sample,gain:x.value})});toast(`Плата ${board}, образец ${sample}: gain яркости ${x.value}`)}catch(e){toast(e.message,true)}});
-  document.querySelectorAll('[data-apply]').forEach(b=>b.onclick=async()=>{let [board,sample]=b.dataset.apply.split(':').map(Number),s=channelState[b.dataset.apply];try{await api('/api/set',{method:'POST',body:JSON.stringify({board,sample,voltage:s.voltage,current:s.current,current_limit:s.limit})});toast(`Плата ${board}, образец ${sample}: применено`)}catch(e){toast(e.message,true)}});
+  document.querySelectorAll('[data-apply]').forEach(b=>b.onclick=async()=>{let [board,sample]=b.dataset.apply.split(':').map(Number),s=channelState[b.dataset.apply];b.disabled=true;try{await api('/api/set',{method:'POST',body:JSON.stringify({board,sample,voltage:s.voltage,current:s.current,current_limit:s.limit,current_feedback:s.feedback,current_tolerance:s.tolerance})});toast(`Плата ${board}, образец ${sample}: применено`)}catch(e){toast(e.message,true)}finally{b.disabled=false}});
   document.querySelectorAll('[data-zero-board]').forEach(b=>b.onclick=async()=>{let board=+b.dataset.zeroBoard;if(!confirm(`Обнулить плату ${board}?`))return;try{await api('/api/zero/'+board,{method:'POST'});toast(`Плата ${board} обнулена`)}catch(e){toast(e.message,true)}});
   updateChannelMetrics(channels);
 }
@@ -272,6 +272,17 @@ function renderCurrentGainControls(channels){
   (channels||[]).forEach((ch,index)=>{
     let card=cards[index];if(!card)return;
     let controls=card.querySelector('.controls');if(!controls)return;
+    let feedback=card.querySelector('[data-feedback-wrap]');
+    if(!feedback){
+      feedback=document.createElement('div');feedback.dataset.feedbackWrap='1';feedback.className='sub';
+      feedback.innerHTML='<label><input type="checkbox" data-feedback> Подстроить ток по АЦП и зафиксировать</label><label style="display:block">Допуск ± мА <input class="field" type="number" min="0.0001" max="5" step="0.001" data-tolerance></label><div data-feedback-status></div>';
+      controls.insertAdjacentElement('afterend',feedback);
+      let s=ensureChannelDefaults(ch),check=feedback.querySelector('[data-feedback]'),tol=feedback.querySelector('[data-tolerance]');
+      check.checked=s.feedback;tol.value=s.tolerance;
+      check.onchange=()=>{s.feedback=check.checked};tol.oninput=()=>{s.tolerance=+tol.value};
+    }
+    let reg=ch.current_control;
+    feedback.querySelector('[data-feedback-status]').textContent=reg?`${reg.status} · цель ${reg.target_ma.toFixed(4)} мА ±${reg.tolerance_ma.toFixed(4)} · ЦАП I ${reg.dac_v.toFixed(4)} В`:'После 3 измерений в допуске ЦАП фиксируется до следующего «Применить».';
     let wrap=controls.querySelector('[data-current-gain-wrap]');
     if(!wrap){wrap=document.createElement('label');wrap.dataset.currentGainWrap='1';wrap.innerHTML='Gain тока<select class="select" data-current-adc-gain></select>';controls.appendChild(wrap)}
     let select=wrap.querySelector('select');
